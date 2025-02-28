@@ -7,6 +7,12 @@ namespace FileMonitor
 {
     public class Migrator
     {
+        private readonly Configuration _configuration;
+        public Migrator(Configuration  configuration) 
+        { 
+            _configuration = configuration;
+        }
+
         public async Task UploadFileToSharePoint(string siteId, string driveId, string fileName, string filePath)
         {
             try
@@ -35,7 +41,7 @@ namespace FileMonitor
 
                 var versionAfterUpload = await GetFileVersion(siteId, driveId, fileName);
 
-                if (Convert.ToDouble(versionAfterUpload) > Convert.ToDouble(versionBeforeUpload))
+                if (Convert.ToDouble(versionAfterUpload) > Convert.ToDouble(versionBeforeUpload) && _configuration.AutoDeleteSrc)
                 {
                     deleteFileInSystem(filePath);
                 }
@@ -110,9 +116,9 @@ namespace FileMonitor
 
         private async Task<string> GetAccessTokenAsync()
         {
-            var clientId = Configuration.ClientId;
-            var clientSecret = Configuration.clientSecret;
-            var tenantId = Configuration.TenantId;
+            var clientId = _configuration.ClientId;
+            var clientSecret = _configuration.ClientSecret;
+            var tenantId = _configuration.TenantId;
 
             var options = new TokenCredentialOptions
             {

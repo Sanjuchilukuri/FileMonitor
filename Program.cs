@@ -1,4 +1,5 @@
 ﻿using FileMonitor;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
@@ -10,8 +11,16 @@ namespace FileMonitor
         {
 
             var host = new HostBuilder()
+                        .ConfigureAppConfiguration((context, config) =>
+                        {
+                           config.SetBasePath(Directory.GetCurrentDirectory())
+                           .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+                        })
                         .ConfigureServices((context, services) =>
                         {
+                            services.AddSingleton<IConfiguration>(context.Configuration);
+                            services.AddSingleton<Configuration>();
+                            services.AddSingleton<Migrator>();
                             services.AddHostedService<StartUp>();
                         })
                         .UseConsoleLifetime()
@@ -25,12 +34,20 @@ namespace FileMonitor
 public class StartUp : BackgroundService
 {
 
-    public StartUp()
-    {
-        FileSystemWatcher watcher = new FileSystemWatcher();
-        watcher.Path = Configuration.folderToMoniter;
+    private readonly Configuration _configuration;
+    private readonly Migrator _migrator;
 
-        watcher.Filter = "*.*";
+    public StartUp(Configuration configuration, Migrator migrator)
+    {
+        _configuration = configuration;
+        _migrator = migrator;
+
+
+        FileSystemWatcher watcher = new FileSystemWatcher();
+        
+        watcher.Path = _configuration.FolderToMonitor;
+        
+        watcher.Filter = "*.*"; 
 
         watcher.Created += OnFileCreatedOrModified;
 
@@ -43,8 +60,12 @@ public class StartUp : BackgroundService
         return Task.CompletedTask;
     }
 
-    private static async void OnFileCreatedOrModified(object sender, FileSystemEventArgs e)
+    private async void OnFileCreatedOrModified(object sender, FileSystemEventArgs e)
     {
-        await (new Migrator()).UploadFileToSharePoint(Configuration.SiteId, Configuration.LibraryId, e.Name!, e.FullPath);
+
+        if ( e.Name == _configuration.TargetFileName || _configuration.TargetFileName == String.Empty)
+        {
+            await _migrator.UploadFileToSharePoint(_configuration.SiteId, _configuration.LibraryId, e.Name!, e.FullPath);
+        }
     }
 }
